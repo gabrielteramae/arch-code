@@ -1,4 +1,4 @@
-# 🎧 SpotifyArch — Implementação em C# do Case Study "Arquitetando o Spotify"
+# 🎧 Implementação em C# do Case Study "Arquitetando o Spotify"
 
 ![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?style=flat&logo=dotnet&logoColor=white)
 ![Blazor](https://img.shields.io/badge/Blazor-WebAssembly-512BD4?style=flat&logo=blazor&logoColor=white)
