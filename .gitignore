@@ -1,0 +1,13 @@
+bin/
+obj/
+*.db
+*.db-shm
+*.db-wal
+.vs/
+.vscode/
+*.user
+Uploads/*.mp3
+Uploads/*.wav
+Uploads/*.m4a
+Uploads/*.ogg
+!Uploads/README.txt

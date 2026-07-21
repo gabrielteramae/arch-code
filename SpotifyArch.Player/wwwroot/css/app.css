@@ -1,0 +1,157 @@
+:root {
+    --bg: #121212;
+    --bg-elevated: #181818;
+    --bg-hover: #282828;
+    --accent: #1db954;
+    --text: #ffffff;
+    --text-muted: #b3b3b3;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+.loading-screen {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    color: var(--text-muted);
+}
+
+.app-shell {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+.app-header {
+    padding: 20px 24px;
+    background: var(--bg-elevated);
+    border-bottom: 1px solid #232323;
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+}
+
+.app-header .logo { font-weight: 700; font-size: 1.2rem; }
+.app-header .subtitle { color: var(--text-muted); font-size: 0.85rem; }
+
+.app-content {
+    flex: 1;
+    padding: 24px;
+    max-width: 720px;
+    margin: 0 auto;
+    width: 100%;
+    padding-bottom: 110px; /* espaço pro now-playing fixo */
+}
+
+.search-bar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.search-bar input {
+    flex: 1;
+    padding: 10px 14px;
+    border-radius: 20px;
+    border: none;
+    background: var(--bg-elevated);
+    color: var(--text);
+    outline: none;
+}
+
+.search-bar button {
+    padding: 10px 18px;
+    border-radius: 20px;
+    border: none;
+    background: var(--accent);
+    color: #000;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.hint { color: var(--text-muted); }
+
+.track-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.track-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.track-row:hover { background: var(--bg-hover); }
+.track-row.active { background: var(--bg-hover); }
+.track-row.active .track-title { color: var(--accent); }
+
+.track-info { display: flex; flex-direction: column; }
+.track-title { font-weight: 600; }
+.track-meta { font-size: 0.8rem; color: var(--text-muted); }
+.track-plays { color: var(--text-muted); font-size: 0.85rem; }
+
+.now-playing {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--bg-elevated);
+    border-top: 1px solid #232323;
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.now-playing.hidden { display: none; }
+
+.now-playing-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 160px;
+}
+
+.controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+}
+
+.controls button {
+    background: var(--accent);
+    border: none;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    cursor: pointer;
+    font-size: 1rem;
+}
+
+.controls input[type="range"] { flex: 1; }
+.controls .time { color: var(--text-muted); font-size: 0.8rem; min-width: 80px; text-align: right; }
+
+.hidden-audio { display: none; }
+
+#blazor-error-ui {
+    display: none;
+    background: #d32f2f;
+    color: white;
+    padding: 10px;
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+}

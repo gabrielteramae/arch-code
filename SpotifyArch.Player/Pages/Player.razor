@@ -1,0 +1,178 @@
+@page "/"
+@implements IAsyncDisposable
+@inject ApiClient Api
+@inject IJSRuntime JS
+
+<PageTitle>SpotifyArch Player</PageTitle>
+
+<div class="player-page">
+
+    <div class="search-bar">
+        <input @bind="_query" @bind:event="oninput" @onkeyup="OnSearchKeyUp"
+               placeholder="Buscar faixa, artista ou álbum..." />
+        <button @onclick="SearchAsync">Buscar</button>
+    </div>
+
+    @if (_loading)
+    {
+        <p class="hint">Carregando...</p>
+    }
+    else if (_tracks.Count == 0)
+    {
+        <p class="hint">Nenhuma faixa encontrada. Cadastre faixas pela API (/api/tracks).</p>
+    }
+    else
+    {
+        <ul class="track-list">
+            @foreach (var track in _tracks)
+            {
+                <li class="track-row @(track.Id == _currentTrack?.Id ? "active" : "")"
+                    @onclick="() => PlayAsync(track)">
+                    <div class="track-info">
+                        <span class="track-title">@track.Title</span>
+                        <span class="track-meta">@track.ArtistName · @track.AlbumTitle</span>
+                    </div>
+                    <span class="track-plays">▶ @track.PlayCount</span>
+                </li>
+            }
+        </ul>
+    }
+
+    <div class="now-playing @(_currentTrack is null ? "hidden" : "")">
+        @if (_currentTrack is not null)
+        {
+            <div class="now-playing-info">
+                <strong>@_currentTrack.Title</strong>
+                <span>@_currentTrack.ArtistName</span>
+            </div>
+
+            <div class="controls">
+                <button @onclick="TogglePlayPause">@(_isPlaying ? "⏸" : "▶")</button>
+                <input type="range" min="0" max="@_durationSeconds" step="0.1"
+                       value="@_currentSeconds" @oninput="OnSeek" />
+                <span class="time">@FormatTime(_currentSeconds) / @FormatTime(_durationSeconds)</span>
+            </div>
+        }
+    </div>
+
+    <audio id="audio-player" class="hidden-audio"></audio>
+</div>
+
+@code {
+    private List<TrackDto> _tracks = new();
+    private string _query = string.Empty;
+    private bool _loading;
+
+    private TrackDto? _currentTrack;
+    private bool _isPlaying;
+    private double _currentSeconds;
+    private double _durationSeconds;
+
+    // Usuário fixo de demo — num app real viria da autenticação.
+    private readonly Guid _demoUserId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+
+    private IJSObjectReference? _jsModule;
+    private DotNetObjectReference<Player>? _dotNetRef;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await SearchAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./js/audioPlayer.js");
+            _dotNetRef = DotNetObjectReference.Create(this);
+            await _jsModule.InvokeVoidAsync("init", "audio-player", _dotNetRef);
+        }
+    }
+
+    private async Task SearchAsync()
+    {
+        _loading = true;
+        _tracks = await Api.SearchTracksAsync(_query);
+        _loading = false;
+    }
+
+    private async Task OnSearchKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await SearchAsync();
+    }
+
+    private async Task PlayAsync(TrackDto track)
+    {
+        // Passo 1: pede a URL assinada (o player nunca acessa o storage direto)
+        var streamInfo = await Api.GetStreamUrlAsync(track.Id);
+        if (streamInfo is null || _jsModule is null) return;
+
+        _currentTrack = track;
+        _isPlaying = true;
+
+        // Passo 2: o <audio> nativo do navegador busca o áudio nessa URL,
+        // já usando Range Requests automaticamente para buffering.
+        await _jsModule.InvokeVoidAsync("setSourceAndPlay", streamInfo.Url);
+    }
+
+    private async Task TogglePlayPause()
+    {
+        if (_jsModule is null || _currentTrack is null) return;
+
+        if (_isPlaying)
+        {
+            await _jsModule.InvokeVoidAsync("pause");
+        }
+        else
+        {
+            await _jsModule.InvokeVoidAsync("resume");
+        }
+        _isPlaying = !_isPlaying;
+    }
+
+    private async Task OnSeek(ChangeEventArgs e)
+    {
+        if (_jsModule is null) return;
+        if (double.TryParse(e.Value?.ToString(), out var seconds))
+        {
+            await _jsModule.InvokeVoidAsync("seek", seconds);
+        }
+    }
+
+    // Chamado pelo JS a cada "timeupdate" do elemento <audio>
+    [JSInvokable]
+    public void OnTimeUpdate(double currentTime, double duration)
+    {
+        _currentSeconds = currentTime;
+        _durationSeconds = duration;
+        StateHasChanged();
+    }
+
+    // Chamado pelo JS quando a faixa termina — reporta o evento de reprodução
+    [JSInvokable]
+    public async void OnEnded()
+    {
+        _isPlaying = false;
+        if (_currentTrack is not null)
+        {
+            await Api.ReportPlaybackAsync(_currentTrack.Id, _demoUserId, _currentTrack.DurationMs);
+        }
+        StateHasChanged();
+    }
+
+    private static string FormatTime(double seconds)
+    {
+        if (double.IsNaN(seconds) || seconds < 0) seconds = 0;
+        var ts = TimeSpan.FromSeconds(seconds);
+        return $"{(int)ts.TotalMinutes}:{ts.Seconds:D2}";
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _dotNetRef?.Dispose();
+        if (_jsModule is not null)
+        {
+            await _jsModule.DisposeAsync();
+        }
+    }
+}
