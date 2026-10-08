@@ -42,7 +42,15 @@ public class SignedUrlService
         var parts = token.Split('.');
         if (parts.Length != 2) return false;
 
-        var payload = Base64UrlDecode(parts[0]);
+        string payload;
+        try
+        {
+            payload = Base64UrlDecode(parts[0]);
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
         var expectedSignature = Sign(payload);
 
         if (!CryptographicOperations.FixedTimeEquals(
