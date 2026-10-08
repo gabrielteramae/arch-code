@@ -1,90 +1,77 @@
-# 🎧 Implementação em C# do Case Study "Arquitetando o Spotify"
+# Arch Code — catálogo e streaming do case Spotify
 
-![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?style=flat&logo=dotnet&logoColor=white)
+![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?style=flat&logo=dotnet&logoColor=white)
+![ASP.NET Core](https://img.shields.io/badge/ASP.NET%20Core-Minimal%20APIs-512BD4?style=flat&logo=dotnet&logoColor=white)
 ![Blazor](https://img.shields.io/badge/Blazor-WebAssembly-512BD4?style=flat&logo=blazor&logoColor=white)
-![EF Core](https://img.shields.io/badge/EF%20Core-SQLite-blue?style=flat)
+![SQLite](https://img.shields.io/badge/SQLite-EF%20Core%208-003B57?style=flat&logo=sqlite&logoColor=white)
 
-Prova de conceito em código do case study de system design [Arquitetando o Spotify](../arquitetando-spotify): uma API de catálogo/streaming e um mini player web, ambos em C#, implementando os conceitos-chave do documento de arquitetura — **URLs assinadas (signed URLs)**, **HTTP Range Requests** para streaming progressivo, e **eventos de reprodução** (análogo simplificado do Event Bus).
+Prova de conceito em C# do estudo [Arquitetando o Spotify](https://github.com/gabrielteramae/arquitetando-spotify). São dois projetos: uma API de catálogo e streaming e um player Blazor WebAssembly. Não há microsserviços separados, CDN nem fila.
 
-## 📦 Projetos
-
-| Projeto | O quê | Tecnologia |
+| Peça | O que o código faz | O que não faz |
 |---|---|---|
-| `SpotifyArch.Api` | API de catálogo + streaming | ASP.NET Core Minimal APIs, EF Core, SQLite |
-| `SpotifyArch.Player` | Mini player web | Blazor WebAssembly |
+| URL assinada | `SignedUrlService` assina `trackId:expiração` com HMAC-SHA256. O TTL padrão é 5 minutos (`Streaming:UrlTtlMinutes`). | Não é CloudFront nem outro CDN. |
+| Áudio | `GET /api/stream` devolve o arquivo local com `enableRangeProcessing: true`. | O arquivo fica em `Uploads/`, não em object storage. |
+| Evento de play | `POST /api/playback-events` só escreve log e responde 202. O stream incrementa `PlayCount` na hora. | Não publica em Kafka, Kinesis nem SQS. |
 
-## 🧠 Conceitos do case study implementados
+## Stack
 
-- ✅ **Signed URLs**: `/api/tracks/{id}/stream-url` gera um token assinado (HMAC-SHA256) com expiração — o player nunca acessa o storage diretamente, só recebe uma URL temporária, exatamente como descrito na seção 8 do case study.
-- ✅ **HTTP Range Requests**: o endpoint `/api/stream` usa `enableRangeProcessing: true`, permitindo que o navegador dê seek e faça buffering progressivo sem baixar o arquivo inteiro.
-- ✅ **Eventos de reprodução**: `POST /api/playback-events` simula a publicação no Event Bus (Kafka/Kinesis na arquitetura real) consumido pelo pipeline de analytics/recomendação.
-- ✅ **Separação de domínio**: catálogo e streaming em módulos de endpoint isolados, preparando terreno para virarem microsserviços separados no futuro.
+- .NET 10 (`net10.0`) nos dois projetos
+- API: ASP.NET Core Minimal APIs, Swagger apenas em Development, EF Core 8.0.10 com SQLite
+- Player: Blazor WebAssembly (pacotes 10.0.10) e `wwwroot/js/audioPlayer.js`
 
-## 🚀 Como rodar localmente
+## Estrutura
 
-### Pré-requisitos
-- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
-- Um arquivo `.mp3` qualquer (livre de direitos), renomeado para `sample.mp3`
-
-### 1. Rodar a API
-
-```bash
-cd SpotifyArch.Api
-# adicione um mp3 de teste antes de rodar:
-cp /caminho/para/algum.mp3 Uploads/sample.mp3
-
-dotnet restore
-dotnet run
+```
+arch-code/
+├── SpotifyArch.sln
+├── SpotifyArch.Api/
+│   ├── Program.cs
+│   ├── SpotifyArch.Api.csproj
+│   ├── appsettings.json
+│   ├── Data/            AppDbContext, SeedData
+│   ├── Endpoints/       CatalogEndpoints, StreamingEndpoints
+│   ├── Models/Domain.cs
+│   ├── Services/SignedUrlService.cs
+│   └── Uploads/         áudio local (sample.mp3 não vem no git)
+└── SpotifyArch.Player/
+    ├── Program.cs
+    ├── Pages/Player.razor
+    ├── Services/ApiClient.cs
+    └── wwwroot/         appsettings.json, css, js/audioPlayer.js
 ```
 
-A API sobe em `http://localhost:5000`. O Swagger fica em `http://localhost:5000/swagger`.
+Catálogo: `GET /api/tracks` (query `q`), `GET /api/tracks/{id}`, `POST /api/artists`, `POST /api/albums`, `POST /api/albums/{albumId}/tracks` (multipart).
 
-No primeiro start, o banco SQLite é criado automaticamente e populado com uma faixa de exemplo (`Faixa de Exemplo`, do `Banda Demo`).
+Streaming: `GET /api/tracks/{id}/stream-url`, `GET /api/stream?token=`, `POST /api/playback-events`.
 
-### 2. Rodar o Player (Blazor WebAssembly)
+No primeiro start, `EnsureCreated` cria o SQLite `spotifyarch.db`. Se não houver artista, o seed grava "Banda Demo", "Álbum de Demonstração" e "Faixa de Exemplo", com `AudioRef` `sample.mp3`.
+
+## Como rodar
+
+Pré-requisito: [.NET 10 SDK](https://dotnet.microsoft.com/download).
+
+```bash
+git clone https://github.com/gabrielteramae/arch-code.git
+cd arch-code
+```
+
+Coloque um `.mp3` em `SpotifyArch.Api/Uploads/sample.mp3`. O `Uploads/README.txt` descreve esse passo. Sem o arquivo, a URL assinada é gerada, mas `/api/stream` responde que o áudio não foi encontrado.
+
+```bash
+dotnet run --project SpotifyArch.Api
+```
+
+A API escuta em `http://localhost:5000` (`Properties/launchSettings.json`). Swagger em `http://localhost:5000/swagger`.
 
 Em outro terminal:
 
 ```bash
-cd SpotifyArch.Player
-dotnet restore
-dotnet run
+dotnet run --project SpotifyArch.Player
 ```
 
-Abre em `http://localhost:5173` (ou a porta que o terminal indicar). O `wwwroot/appsettings.json` já aponta para `http://localhost:5000` — ajuste se sua API rodar em outra porta.
+O player não tem `launchSettings.json`; use a porta que o terminal mostrar. `wwwroot/appsettings.json` aponta `ApiBaseUrl` para `http://localhost:5000`.
 
-### 3. Testar
-
-1. Abra o Player no navegador
-2. A faixa de exemplo já deve aparecer na lista
-3. Clique nela — o player vai buscar a signed URL na API e tocar o áudio
-4. Acompanhe o `PlayCount` subindo a cada reprodução (via `GET /api/tracks`)
-
-## 🔍 Testando a API isoladamente (sem o Player)
-
-```bash
-# Lista faixas
-curl http://localhost:5000/api/tracks
-
-# Gera uma signed URL para uma faixa (pegue o {id} do comando acima)
-curl http://localhost:5000/api/tracks/{id}/stream-url
-
-# A URL retornada já pode ser aberta direto no navegador ou testada com:
-curl -v "http://localhost:5000/api/stream?token=..."
-```
-
-Repare que uma URL expirada ou com token adulterado retorna `401 Unauthorized` — é a validação de assinatura em ação.
-
-## ☁️ Deploy
-
-- **API**: Railway (mesmo padrão do `transformador-de-arquivos`). Lembre de trocar `Streaming:SigningSecret` por uma variável de ambiente segura, e ajustar `Cors:AllowedOrigins`/`AllowAnyOrigin()` para restringir à URL real do Player em produção.
-- **Player**: como é Blazor WebAssembly, o resultado do `dotnet publish` é um conjunto de arquivos estáticos (`bin/Release/net8.0/publish/wwwroot`) — pode subir no Vercel como qualquer outro frontend estático seu. Antes de publicar, atualize `wwwroot/appsettings.json` com a URL da API em produção.
-
-## 🗺️ Relação com o case study
-
-Este código implementa uma fatia pequena e deliberadamente simplificada da arquitetura completa (sem microsserviços de fato separados, sem CDN real, sem fila de mensageria de verdade) — o objetivo é provar, na prática, os conceitos mais importantes do documento: **por que** signed URLs existem, **como** range requests viabilizam streaming, e **onde** eventos de reprodução se encaixam no pipeline de dados.
-
-Veja o documento completo de arquitetura em [`arquitetando-spotify/README.md`](../arquitetando-spotify/README.md).
+Token adulterado ou expirado em `/api/stream` volta 401. O segredo fica em `Streaming:SigningSecret` no `appsettings.json`.
 
 ---
 
